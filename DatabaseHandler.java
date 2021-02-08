@@ -10,19 +10,17 @@ import org.json.simple.JSONObject;
 public class DatabaseHandler {
     private final String filePath = System.getProperty("user.dir");
     private final String databaseName = "database.db";
-    private final String databseURL = "jdbc:sqlite:" + filePath + "\\db\\" + databaseName;
-    private Connection sqliteconn = null;
+    private final String databaseURL = "jdbc:sqlite:" + filePath + "\\db\\" + databaseName;
+    private Connection sqliteconn;
     private Server server;
-
-    private Map<String, JSONObject> users = new HashMap<>();
 
 
     public DatabaseHandler(Server server) throws ClassNotFoundException, SQLException {
         this.server = server;
+        User.createDummyUser();
 
-        String url = "jdbc:sqlite:" + filePath + "/db/database.db";
         Class.forName("org.sqlite.JDBC");
-        sqliteconn = DriverManager.getConnection(url);
+        sqliteconn = DriverManager.getConnection(databaseURL);
         log("Connected to SQLite");
         checkTables();
     }
@@ -30,81 +28,23 @@ public class DatabaseHandler {
 
     public void printUsers() {
         System.out.println("\nUser:");
-        for (String key : users.keySet()) {
-            System.out.println(key);
-            System.out.println("|--ip:" + users.get(key).get("ip"));
-            System.out.println("|--name:" + users.get(key).get("name"));
-            System.out.println("+--sharecode:" + users.get(key).get("sharecode"));
-            System.out.println("");
+        for (User u : User.getUsers()) {
+            System.out.println(u);
         }
-        if (users.size() == 0) {
+        if (User.getUsers().size() == 0) {
             System.out.println("Users empty");
         }
 
     }
 
-    private void writeToUsers(String type, String id) {
-        if (type.equals("rm")) {
-            users.remove(id);
-        }
-    }
-
-    private void writeToUsers(String type, String id, WebSocket conn, String name, String sharecode) {
-        switch (type) {
-            case "rm":
-                writeToUsers("rm", id);
-                break;
-            case "add":
-                //Check if the user already exists
-                if (getUserByConn(conn) == null) {
-                    JSONObject m = new JSONObject();
-                    m.put("ip", conn.getRemoteSocketAddress().getAddress().getHostAddress());
-                    m.put("name", name);
-                    m.put("sharecode", sharecode);
-                    m.put("connection", conn);
-                    users.put(id, m);
-                    log("Added new user " + id + " with name " + name);
-                }
-                break;
-        }
-    }
-
-    public WebSocket[] getAllConnections() {
-        WebSocket[] conns = new WebSocket[users.size()];
-        for (int i = 0; i < users.keySet().toArray().length; i++) {
-            conns[i] = (WebSocket) users.get(users.keySet().toArray()[i]).get("connection");
-        }
-        return conns;
-    }
-
-    public JSONObject getUserByConn(WebSocket conn) {
-        for (String key : users.keySet()) {
-            if (users.get(key).get("connection").equals(conn)) {
-                return (JSONObject) users.get(key);
-            }
-        }
-        return null;
-    }
-
-    private String getIdByConn(WebSocket conn) {
-        for (String key : users.keySet()) {
-            if (users.get(key).get("connection").equals(conn)) {
-                return key;
-            }
-        }
-        return null;
-    }
 
     public void newMessage(WebSocket conn, String content, String time) {
         String sql = "INSERT INTO messages(id,content,author,author_id,time) VALUES(?,?,?,?,?)";
 
-        String mid = "";
-        List<String> mids = getAllMessageIDs();
-        do {
-            mid = generateRandomString(32);
-        } while (mids.contains(mid));
-        String author = (String) getUserByConn(conn).get("name");
-        String author_id = getIdByConn(conn);
+        String mid = Util.generateUniqueString(32, getAllMessageIDs());
+
+        String author = User.getUserByConnection(conn).getName();
+        String author_id = User.getUserByConnection(conn).getId();
 
         try (PreparedStatement pstmt = sqliteconn.prepareStatement(sql)) {
             pstmt.setString(1, mid);
@@ -120,50 +60,19 @@ public class DatabaseHandler {
     }
 
     public String newConnection(WebSocket conn, String name) {
-        String sql = "INSERT INTO users (id, ip, name, sharecode) VALUES (?,?,?,?)";
-        String myid = "";
-        do {
-            myid = generateRandomString(5);
-        } while (users.containsKey(myid));
-        return newConnection(conn, name, myid);
+        return newConnection(conn, name, Util.generateUniqueString(10, User.getUser_ids()));
     }
 
     public String newConnection(WebSocket conn, String name, String id) {
-        writeToUsers("add", id, conn, name, id);
-        return id;
+        return User.createNewUser(conn, name, id).getId();
     }
 
     public void connectionClose(WebSocket conn) {
-        writeToUsers("rm", getIdByConn(conn));
-//        printUsers();
-    }
-
-//    public static void main(String[] args) throws ClassNotFoundException, UnknownHostException {
-//
-//        DatabaseHandler db = new DatabaseHandler(new Server(5555));
-//        db.newConnection("127.0.0.0.0", "Matthias");
-//        Scanner scan = new Scanner(System.in);
-//
-//        String s = scan.next();
-//        db.connectionClose("127.0.0.0.0");
-//    }
-
-    public String generateRandomString(int targetStringLength) {
-        int leftLimit = 48; // numeral '0'
-        int rightLimit = 122; // letter 'z'
-        Random random = new Random();
-
-        String generatedString = random.ints(leftLimit, rightLimit + 1)
-                .filter(i -> (i <= 57 || i >= 65) && (i <= 90 || i >= 97))
-                .limit(targetStringLength)
-                .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
-                .toString();
-
-        return generatedString;
+        User.removeUser(conn);
     }
 
     private void log(String s) {
-        this.server.log(s);
+        Util.log(s);
     }
 
     private void checkTables() {
@@ -200,6 +109,6 @@ public class DatabaseHandler {
         } catch (SQLException e) {
             log(e.getMessage() + " @server.DatabaseHandler.getALlMessageIDs SQLException");
         }
-        return null;
+        return ids;
     }
 }

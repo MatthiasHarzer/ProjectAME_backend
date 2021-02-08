@@ -14,18 +14,14 @@ import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
 public class Server extends WebSocketServer {
-    private String filePath;
-    private FileWriter logFileWriter;
     private DatabaseHandler database;
 
 
-    public Server(int port) throws UnknownHostException {
+    public Server(int port) {
         super(new InetSocketAddress(port));
         init();
     }
@@ -36,25 +32,12 @@ public class Server extends WebSocketServer {
     }
 
     public Server(int port, Draft_6455 draft) {
-        super(new InetSocketAddress(port), Collections.<Draft>singletonList(draft));
+        super(new InetSocketAddress(port), Collections.singletonList(draft));
         init();
     }
 
 
     public void init() {
-        filePath = System.getProperty("user.dir");
-
-        try {
-            File logFile = new File(filePath + "\\server_log.txt");
-            if (logFile.createNewFile()) {
-//                System.out.println("File created: " + logFile.getName());
-            } else {
-//                System.out.println("File already exists.");
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
         log("ChatServer started at " + getAddress());
 
         try {
@@ -91,13 +74,13 @@ public class Server extends WebSocketServer {
 
     private void sendMessageToAll(WebSocket authorConn, String message, String time) throws IOException {
         try {
-            log("Trying to send message '" + message + "' from " + database.getUserByConn(authorConn).get("name"));
+            log("Trying to send message '" + message + "' from " + User.getUserByConnection(authorConn).getName());
         } catch (NullPointerException e) {
             log("Trying to send message '" + message + "' from " + authorConn);
         }
-        for (WebSocket conn : database.getAllConnections()) {
+        for (User u : User.getUsers()) {
             try {
-                sendMessageToConn(conn, "message", message, (String) database.getUserByConn(authorConn).get("name"), time);
+                sendMessageToConn(u.getConnection(), "message", message, u.getName(), time);
 
             } catch (NullPointerException e) {
                 log("A nullpointer exception occurred sending message '" + message + "' to " + authorConn);
@@ -112,7 +95,7 @@ public class Server extends WebSocketServer {
     }
 
     private void sendMessageToConn(WebSocket conn, String type, String content, String name, String ts) throws IOException {
-        Map<String, String> m = new HashMap<String, String>();
+        Map<String, String> m = new HashMap<>();
         m.put("type", type);
         m.put("content", content);
         m.put("name", name);
@@ -127,7 +110,7 @@ public class Server extends WebSocketServer {
 //        System.out.println(conn + " has left the room!");
 
         try {
-            log(database.getUserByConn(conn).get("name") + "@" + database.getUserByConn(conn).get("ip") + " has left the room!");
+            log(User.getUserByConnection(conn).getName() + "@" + User.getUserByConnection(conn).getIp() + " has left the room!");
         } catch (NullPointerException e) {
             log(conn + " has left the room!");
         }
@@ -143,8 +126,8 @@ public class Server extends WebSocketServer {
 //        log(conn.getRemoteSocketAddress().getAddress().getHostAddress() + ": " + message);
 
         try {
-            Map<String, String> messageData = stringToMap(message);
-            processMessage((HashMap<String, String>) messageData, conn);
+            HashMap<String, String> messageData = stringToMap(message);
+            processMessage(messageData, conn);
         } catch (IOException e) {
             log(e.getMessage() + " @server.Server.onMessage IOException");
         } catch (ClassNotFoundException e) {
@@ -179,7 +162,7 @@ public class Server extends WebSocketServer {
     public void onError(WebSocket conn, Exception ex) {
         ex.printStackTrace();
         if (conn != null) {
-            // some errors like port binding failed may not be assignable to a specific websocket
+            log(ex.getMessage() + " @server.Server.onError");
         }
     }
 
@@ -213,7 +196,7 @@ public class Server extends WebSocketServer {
     }
 
     //Converts a map to a string
-    private String mapToString(Map o) throws IOException {
+    private String mapToString(Map<String, String> o) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(baos);
         oos.writeObject(o);
@@ -235,33 +218,7 @@ public class Server extends WebSocketServer {
 
     //log the message to the logfile and console inf format [dd-MM-yyyy hh:mm:ss] <message>
     public void log(String s) {
-        LocalDateTime time = LocalDateTime.now();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
-        String formattedDate = time.format(formatter);
-
-
-        String logmsg = "[" + formattedDate + "] " + s;
-
-        System.out.println(logmsg);
-
-        try {
-            logFileWriter = new FileWriter(filePath + "\\server_log.txt", true);
-            logFileWriter.write(logmsg + "\n");
-            logFileWriter.close();
-
-//            PrintWriter out = new PrintWriter(new OutputStreamWriter(
-//                    new BufferedOutputStream(new FileOutputStream(filePath + "\\server_log.txt")), "UTF-8"), true);
-//
-//            out.println(logmsg);
-//
-//            out.flush();
-//            out.close();
-
-        } catch (IOException e) {
-            System.out.println("An error occurred writing to the log file!");
-            e.printStackTrace();
-        }
-
+        Util.log(s);
     }
 
 }
