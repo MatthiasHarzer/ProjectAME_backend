@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Random;
 
 public class User {
+    
     private static List<String> user_ids = new ArrayList<>();
     private static List<User> users = new ArrayList<>();
     private static User dummyuser;
