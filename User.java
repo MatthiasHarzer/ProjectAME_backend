@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Random;
 
 public class User {
-    
+
     private static List<String> user_ids = new ArrayList<>();
     private static List<User> users = new ArrayList<>();
     private static User dummyuser;
@@ -89,11 +89,12 @@ public class User {
         users.add(this);
     }
 
-    private User(String name, String id) {
+    private User(String name, String id, String ip) {
         this.id = id;
         this.sharecode = this.id;
         this.name = name;
         this.connection = null;
+        this.ip = ip;
     }
 
     public static User createNewUser(WebSocket connection, String name, String id) {
@@ -123,7 +124,7 @@ public class User {
 
     public static void createDummyUser() {
         if (dummyuser == null) {
-            dummyuser = new User("undefined", "undefined");
+            dummyuser = new User("undefined", "undefined", "undefined");
         }
     }
 

@@ -25,18 +25,42 @@ public class DatabaseHandler {
         checkTables();
     }
 
-
-    public void printUsers() {
-        System.out.println("\nUser:");
-        for (User u : User.getUsers()) {
-            System.out.println(u);
+    public List<Map<String, String>> getAllMessages(long from, long to) {
+        if (from > to) {
+            long t = to;
+            to = from;
+            from = t;
         }
-        if (User.getUsers().size() == 0) {
-            System.out.println("Users empty");
-        }
+        String sql = "SELECT id,content,author,author_id,time "
+                + "FROM messages WHERE time BETWEEN ? AND ?";
+        List<Map<String, String>> messages = new ArrayList<>();
 
+        try (PreparedStatement pstmt = sqliteconn.prepareStatement(sql)) {
+
+
+            //
+            pstmt.setLong(1, from);
+            pstmt.setLong(2, to);
+            ResultSet rs = pstmt.executeQuery();
+
+
+            // loop through the result set
+            while (rs.next()) {
+                Map<String, String> m = new HashMap<>();
+//                System.out.println(rs.getString("id"));
+                m.put("id", rs.getString("id"));
+                m.put("content", rs.getString("content"));
+                m.put("author", rs.getString("author"));
+                m.put("author_id", rs.getString("author_id"));
+                m.put("time", rs.getString("time"));
+                messages.add(m);
+            }
+        } catch (SQLException e) {
+            System.out.println(e.getMessage());
+        }
+//        System.out.println("------");
+        return messages;
     }
-
 
     public void newMessage(WebSocket conn, String content, String time) {
         String sql = "INSERT INTO messages(id,content,author,author_id,time) VALUES(?,?,?,?,?)";
@@ -71,8 +95,21 @@ public class DatabaseHandler {
         User.removeUser(conn);
     }
 
-    private void log(String s) {
-        Util.log(s);
+    private List<String> getAllMessageIDs() {
+        List<String> ids = new ArrayList<>();
+
+        String sql = "SELECT id FROM messages";
+        try {
+            Statement stmt = sqliteconn.createStatement();
+            ResultSet rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                ids.add(rs.getString("id"));
+            }
+            return ids;
+        } catch (SQLException e) {
+            log(e.getMessage() + " @server.DatabaseHandler.getALlMessageIDs SQLException");
+        }
+        return ids;
     }
 
     private void checkTables() {
@@ -95,20 +132,20 @@ public class DatabaseHandler {
         }
     }
 
-    private List<String> getAllMessageIDs() {
-        List<String> ids = new ArrayList<>();
-
-        String sql = "SELECT id FROM messages";
-        try {
-            Statement stmt = sqliteconn.createStatement();
-            ResultSet rs = stmt.executeQuery(sql);
-            while (rs.next()) {
-                ids.add(rs.getString("id"));
-            }
-            return ids;
-        } catch (SQLException e) {
-            log(e.getMessage() + " @server.DatabaseHandler.getALlMessageIDs SQLException");
-        }
-        return ids;
+    private void log(String s) {
+        Util.log(s);
     }
+
+    public void printUsers() {
+        System.out.println("\nUser:");
+        for (User u : User.getUsers()) {
+            System.out.println(u);
+        }
+        if (User.getUsers().size() == 0) {
+            System.out.println("Users empty");
+        }
+
+    }
+
+
 }

@@ -2,20 +2,15 @@ package server;
 
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.sql.SQLException;
-import java.util.Base64;
-import java.util.Collections;
+import java.util.*;
 
 import org.java_websocket.WebSocket;
-import org.java_websocket.drafts.Draft;
 import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
-
-import java.util.HashMap;
-import java.util.Map;
+import org.jetbrains.annotations.NotNull;
 
 public class Server extends WebSocketServer {
     private DatabaseHandler database;
@@ -49,17 +44,26 @@ public class Server extends WebSocketServer {
     }
 
     //process the incoming message
-    private void processMessage(HashMap<String, String> data, WebSocket conn) throws IOException {
-        log("Received type '" + data.get("type") + "' with content '" + data.get("content") + "'");
+    private void processMessage(@NotNull HashMap<String, String> data, WebSocket conn) throws IOException {
+        if (!isValidMessage(data, new String[]{"type", "content"})) {
+            sendMessageToConn(conn, "error", "Invalid message");
+            return;
+        }
+
+        log("Received type '" + data.get("type") + "' with content '" + data.get("content") + "' from " + User.getUserByConnection(conn).getName() + "@" + User.getUserByConnection(conn).getIp() + " (User " + User.getUserByConnection(conn).getId() + ")");
         switch (data.get("type")) {
             case "connect":
                 //if it is an init message, tell it the database handler and return the generated id to connection
                 String id = database.newConnection(conn, data.get("content"));
                 sendMessageToConn(conn, "id", id);
                 break;
-            case "connectwithid":
+            case "connect_with_id":
                 //if it is an init message, tell it the database handler and return the generated id to connection
-                database.newConnection(conn, data.get("content"), data.get("id"));
+                if (isValidMessage(data, new String[]{"id"})) {
+                    database.newConnection(conn, data.get("content"), data.get("id"));
+                } else {
+                    sendMessageToConn(conn, "error", "Invalid message with 'connect_with_id'");
+                }
                 break;
 
             case "message":
@@ -68,9 +72,22 @@ public class Server extends WebSocketServer {
                 database.newMessage(conn, data.get("content"), time);
                 sendMessageToAll(conn, data.get("content"), time);
                 break;
+
+            case "request_message_history":
+                if (isValidMessage(data, new String[]{"from", "to"})) {
+                    List<Map<String, String>> messages = database.getAllMessages(Long.parseLong(data.get("from")), Long.parseLong(data.get("to")));
+                    Map<String, String> map = new HashMap<>();
+                    map.put("type", "message_history");
+                    map.put("content", objectToString(messages));
+                    sendMessageToConn(conn, objectToString(map));
+                } else {
+                    sendMessageToConn(conn, "error", "Invalid message with 'request_message_history'");
+                }
+                break;
         }
 //        database.printUsers();
     }
+
 
     private void sendMessageToAll(WebSocket authorConn, String message, String time) throws IOException {
         try {
@@ -100,9 +117,23 @@ public class Server extends WebSocketServer {
         m.put("content", content);
         m.put("name", name);
         m.put("time", ts);
-        conn.send(mapToString(m));
+        sendMessageToConn(conn, objectToString(m));
     }
 
+    private void sendMessageToConn(WebSocket conn, String mapString) {
+        conn.send(mapString);
+    }
+
+    private boolean isValidMessage(@NotNull HashMap<String, String> data, String[] args) {
+        for (String arg : args) {
+            try {
+                data.get(arg);
+            } catch (NullPointerException e) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     @Override
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
@@ -144,7 +175,6 @@ public class Server extends WebSocketServer {
         log(conn.getRemoteSocketAddress().getAddress().getHostAddress() + ": " + message);
     }
 
-
     @Override
     public void onOpen(WebSocket conn, ClientHandshake handshake) {
         try {
@@ -156,7 +186,6 @@ public class Server extends WebSocketServer {
 
 //        databas.newConnection(conn.getRemoteSocketAddress().getAddress().getHostAddress(), );
     }
-
 
     @Override
     public void onError(WebSocket conn, Exception ex) {
@@ -196,7 +225,7 @@ public class Server extends WebSocketServer {
     }
 
     //Converts a map to a string
-    private String mapToString(Map<String, String> o) throws IOException {
+    private String objectToString(Object o) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ObjectOutputStream oos = new ObjectOutputStream(baos);
         oos.writeObject(o);
