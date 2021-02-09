@@ -10,7 +10,7 @@ import org.json.simple.JSONObject;
 public class DatabaseHandler {
     private final String filePath = System.getProperty("user.dir");
     private final String databaseName = "database.db";
-    private final String databaseURL = "jdbc:sqlite:" + filePath + "\\db\\" + databaseName;
+    private final String databaseURL = "jdbc:sqlite:" + filePath + "/db/" + databaseName;
     private Connection sqliteconn;
     private Server server;
 

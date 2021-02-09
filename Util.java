@@ -9,12 +9,12 @@ import java.util.List;
 import java.util.Random;
 
 public class Util {
-    private static String filePath = System.getProperty("user.dir");
+    private static String filePath = System.getProperty("user.dir") + "/server_log.txt";
 
 
     public static void log(String s) {
         try {
-            File logFile = new File(filePath + "\\server_log.txt");
+            File logFile = new File(filePath);
             logFile.createNewFile();
         } catch (IOException e) {
             e.printStackTrace();
@@ -30,7 +30,7 @@ public class Util {
         System.out.println(logmsg);
 
         try {
-            FileWriter logFileWriter = new FileWriter(filePath + "\\server_log.txt", true);
+            FileWriter logFileWriter = new FileWriter(filePath, true);
             logFileWriter.write(logmsg + "\n");
             logFileWriter.close();
 

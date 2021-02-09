@@ -80,6 +80,7 @@ public class Server extends WebSocketServer {
             case "request_message_history":
                 if (isValidMessage(data, new String[]{"from", "to"})) {
                     List<Map<String, String>> messages = database.getAllMessages(Long.parseLong(data.get("from")), Long.parseLong(data.get("to")));
+                    System.out.println(messages.size());
                     HashMap<String, String> map = mapBlueprint("message_history", objectToString(messages));
                     sendMessageToConn(conn, objectToString(map));
                 } else {
