@@ -11,11 +11,11 @@ public class User {
     private static List<String> user_ids = new ArrayList<>();
     private static List<User> users = new ArrayList<>();
     private static User dummyuser;
-    private String id;
+    private final String id;
     private String ip;
-    private String sharecode;
-    private String name;
-    private WebSocket connection;
+    private final String sharecode;
+    private final String name;
+    private final WebSocket connection;
 
     public static List<User> getUsers() {
         return users;

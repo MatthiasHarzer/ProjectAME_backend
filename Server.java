@@ -46,82 +46,91 @@ public class Server extends WebSocketServer {
     //process the incoming message
     private void processMessage(@NotNull HashMap<String, String> data, WebSocket conn) throws IOException {
         if (!isValidMessage(data, new String[]{"type", "content"})) {
-            sendMessageToConn(conn, "error", "Invalid message");
+            sendMessageToConn(conn, mapBlueprint("error", "Invalid message"));
             return;
         }
-
+        String time = System.currentTimeMillis() + "";
         log("Received type '" + data.get("type") + "' with content '" + data.get("content") + "' from " + User.getUserByConnection(conn).getName() + "@" + User.getUserByConnection(conn).getIp() + " (User " + User.getUserByConnection(conn).getId() + ")");
         switch (data.get("type")) {
             case "connect":
                 //if it is an init message, tell it the database handler and return the generated id to connection
                 String id = database.newConnection(conn, data.get("content"));
-                sendMessageToConn(conn, "id", id);
+                sendMessageToConn(conn, mapBlueprint("id", id));
                 break;
             case "connect_with_id":
                 //if it is an init message, tell it the database handler and return the generated id to connection
                 if (isValidMessage(data, new String[]{"id"})) {
                     database.newConnection(conn, data.get("content"), data.get("id"));
                 } else {
-                    sendMessageToConn(conn, "error", "Invalid message with 'connect_with_id'");
+                    sendMessageToConn(conn, mapBlueprint("error", "Invalid message with 'connect_with_id'"));
                 }
                 break;
 
             case "message":
                 //send the message to everyone connected
-                String time = System.currentTimeMillis() + "";
                 database.newMessage(conn, data.get("content"), time);
-                sendMessageToAll(conn, data.get("content"), time);
+
+                HashMap<String, String> m = mapBlueprint("message", data.get("content"));
+                m.put("name", User.getUserByConnection(conn).getName());
+                m.put("time", time);
+                sendMessageToAll(objectToString(m));
                 break;
 
             case "request_message_history":
                 if (isValidMessage(data, new String[]{"from", "to"})) {
                     List<Map<String, String>> messages = database.getAllMessages(Long.parseLong(data.get("from")), Long.parseLong(data.get("to")));
-                    Map<String, String> map = new HashMap<>();
-                    map.put("type", "message_history");
-                    map.put("content", objectToString(messages));
+                    HashMap<String, String> map = mapBlueprint("message_history", objectToString(messages));
                     sendMessageToConn(conn, objectToString(map));
                 } else {
-                    sendMessageToConn(conn, "error", "Invalid message with 'request_message_history'");
+                    sendMessageToConn(conn, mapBlueprint("error", "Invalid message with 'request_message_history'"));
                 }
+                break;
+        }
+        switch (data.get("type")) {
+            case "connect":
+            case "connect_with_id":
+                HashMap<String, String> map = mapBlueprint("join", User.getUserByConnection(conn).getId());
+                map.put("name", User.getUserByConnection(conn).getName());
+                map.put("id", User.getUserByConnection(conn).getId());
+                map.put("ip", User.getUserByConnection(conn).getIp());
+                map.put("time", time);
+                sendMessageToAll(map);
                 break;
         }
 //        database.printUsers();
     }
 
+    private void sendMessageToAll(HashMap<String, String> map) throws IOException {
+        sendMessageToAll(objectToString(map));
+    }
 
-    private void sendMessageToAll(WebSocket authorConn, String message, String time) throws IOException {
-        try {
-            log("Trying to send message '" + message + "' from " + User.getUserByConnection(authorConn).getName());
-        } catch (NullPointerException e) {
-            log("Trying to send message '" + message + "' from " + authorConn);
-        }
+    private void sendMessageToAll(String mapString) {
+//        try {
+//            log("Trying to send message '" + message + "' from " + User.getUserByConnection(authorConn).getName());
+//        } catch (NullPointerException e) {
+//            log("Trying to send message '" + message + "' from " + authorConn);
+//        }
         for (User u : User.getUsers()) {
-            try {
-                sendMessageToConn(u.getConnection(), "message", message, u.getName(), time);
 
-            } catch (NullPointerException e) {
-                log("A nullpointer exception occurred sending message '" + message + "' to " + authorConn);
-                log(e.getMessage());
-            }
+            sendMessageToConn(u.getConnection(), mapString);
+
 
         }
     }
 
-    private void sendMessageToConn(WebSocket conn, String type, String content) throws IOException {
-        sendMessageToConn(conn, type, content, "", "");
-    }
-
-    private void sendMessageToConn(WebSocket conn, String type, String content, String name, String ts) throws IOException {
-        Map<String, String> m = new HashMap<>();
-        m.put("type", type);
-        m.put("content", content);
-        m.put("name", name);
-        m.put("time", ts);
-        sendMessageToConn(conn, objectToString(m));
+    private void sendMessageToConn(WebSocket conn, HashMap<String, String> map) throws IOException {
+        sendMessageToConn(conn, objectToString(map));
     }
 
     private void sendMessageToConn(WebSocket conn, String mapString) {
         conn.send(mapString);
+    }
+
+    private HashMap<String, String> mapBlueprint(String type, String content) {
+        HashMap<String, String> m = new HashMap<>();
+        m.put("type", type);
+        m.put("content", content);
+        return m;
     }
 
     private boolean isValidMessage(@NotNull HashMap<String, String> data, String[] args) {
@@ -178,7 +187,7 @@ public class Server extends WebSocketServer {
     @Override
     public void onOpen(WebSocket conn, ClientHandshake handshake) {
         try {
-            sendMessageToConn(conn, "broadcast", "Welcome to the Server!");
+            sendMessageToConn(conn, mapBlueprint("broadcast", "Welcome to the Server!"));
         } catch (IOException e) {
             e.printStackTrace();
         }
