@@ -8,6 +8,7 @@ import java.util.*;
 
 import org.java_websocket.WebSocket;
 import org.java_websocket.drafts.Draft_6455;
+import org.java_websocket.exceptions.WebsocketNotConnectedException;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 import org.jetbrains.annotations.NotNull;
@@ -89,7 +90,7 @@ public class Server extends WebSocketServer {
         switch (data.get("type")) {
             case "connect":
             case "connect_with_id":
-                HashMap<String, String> map = mapBlueprint("join", User.getUserByConnection(conn).getId());
+                HashMap<String, String> map = mapBlueprint("user_join", User.getUserByConnection(conn).getId());
                 map.put("name", User.getUserByConnection(conn).getName());
                 map.put("id", User.getUserByConnection(conn).getId());
                 map.put("ip", User.getUserByConnection(conn).getIp());
@@ -123,7 +124,12 @@ public class Server extends WebSocketServer {
     }
 
     private void sendMessageToConn(WebSocket conn, String mapString) {
-        conn.send(mapString);
+        try {
+            conn.send(mapString);
+        } catch (WebsocketNotConnectedException e) {
+            //A websocket that just disconnects can't receive any messages -> Exception, ignore
+        }
+
     }
 
     private HashMap<String, String> mapBlueprint(String type, String content) {
@@ -154,7 +160,18 @@ public class Server extends WebSocketServer {
         } catch (NullPointerException e) {
             log(conn + " has left the room!");
         }
+        HashMap<String, String> map = mapBlueprint("user_disconnect", User.getUserByConnection(conn).getId());
+        map.put("name", User.getUserByConnection(conn).getName());
+        map.put("id", User.getUserByConnection(conn).getId());
+        map.put("ip", User.getUserByConnection(conn).getIp());
+        map.put("time", System.currentTimeMillis() + "");
+        try {
+            sendMessageToAll(map);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         database.connectionClose(conn);
+
 
     }
 
