@@ -16,6 +16,7 @@ public class User {
     private final String sharecode;
     private final String name;
     private final WebSocket connection;
+    public boolean exists;
 
     public static List<User> getUsers() {
         return users;
@@ -87,6 +88,7 @@ public class User {
         }
         user_ids.add(id);
         users.add(this);
+        this.exists = true;
     }
 
     private User(String name, String id, String ip) {
@@ -95,6 +97,7 @@ public class User {
         this.name = name;
         this.connection = null;
         this.ip = ip;
+        this.exists = false;
     }
 
     public static User createNewUser(WebSocket connection, String name, String id) {

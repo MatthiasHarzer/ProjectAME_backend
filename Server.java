@@ -50,6 +50,7 @@ public class Server extends WebSocketServer {
             sendMessageToConn(conn, mapBlueprint("error", "Invalid message"));
             return;
         }
+        User requested_user;
         String time = System.currentTimeMillis() + "";
         log("Received type '" + data.get("type") + "' with content '" + data.get("content") + "' from " + User.getUserByConnection(conn).getName() + "@" + User.getUserByConnection(conn).getIp() + " (User " + User.getUserByConnection(conn).getId() + ")");
         switch (data.get("type")) {
@@ -70,11 +71,7 @@ public class Server extends WebSocketServer {
             case "message":
                 //send the message to everyone connected
                 database.newMessage(conn, data.get("content"), time);
-
-                HashMap<String, String> m = mapBlueprint("message", data.get("content"));
-                m.put("name", User.getUserByConnection(conn).getName());
-                m.put("time", time);
-                sendMessageToAll(objectToString(m));
+                sendMessageToAll(textMessageMapBlueprint("message", data.get("content"), User.getUserByConnection(conn).getName(), time), conn);
                 break;
 
             case "request_message_history":
@@ -85,6 +82,24 @@ public class Server extends WebSocketServer {
                     sendMessageToConn(conn, objectToString(map));
                 } else {
                     sendMessageToConn(conn, mapBlueprint("error", "Invalid message with 'request_message_history'"));
+                }
+                break;
+            case "request_private_chat":
+                requested_user = User.getUserById(data.get("content"));
+                if (requested_user.exists) {
+                    sendMessageToConn(conn, mapBlueprint("new_private_chat", requested_user.getName()));
+                    sendMessageToConn(requested_user.getConnection(), mapBlueprint("new_private_chat", User.getUserByConnection(conn).getName()));
+                    new Chat(User.getUserByConnection(conn), requested_user);
+                } else {
+                    sendMessageToConn(conn, mapBlueprint("user_not_found", "User does not exist!"));
+                }
+                break;
+            case "message_to_user":
+                requested_user = User.getUserById(data.get("id"));
+                if (requested_user.exists) {
+                    sendMessageToConn(requested_user.getConnection(), textMessageMapBlueprint("message_from_user", data.get("content"), requested_user.getName(), time, requested_user.getId()));
+                } else {
+                    sendMessageToConn(conn, mapBlueprint("user_not_found", "Couldn't send message to " + data.get("id") + "."));
                 }
                 break;
         }
@@ -102,22 +117,22 @@ public class Server extends WebSocketServer {
 //        database.printUsers();
     }
 
-    private void sendMessageToAll(HashMap<String, String> map) throws IOException {
-        sendMessageToAll(objectToString(map));
+    private void sendMessageToAll(HashMap<String, String> map, WebSocket exceptConnection) throws IOException {
+        sendMessageToAll(objectToString(map), exceptConnection);
     }
 
-    private void sendMessageToAll(String mapString) {
-//        try {
-//            log("Trying to send message '" + message + "' from " + User.getUserByConnection(authorConn).getName());
-//        } catch (NullPointerException e) {
-//            log("Trying to send message '" + message + "' from " + authorConn);
-//        }
+    private void sendMessageToAll(String mapString, WebSocket exceptConnection) {
         for (User u : User.getUsers()) {
-
+            if (u.getConnection().equals(exceptConnection)) {
+                continue;
+            }
             sendMessageToConn(u.getConnection(), mapString);
 
-
         }
+    }
+
+    private void sendMessageToAll(HashMap<String, String> map) throws IOException {
+        sendMessageToAll(objectToString(map), null);
     }
 
     private void sendMessageToConn(WebSocket conn, HashMap<String, String> map) throws IOException {
@@ -138,6 +153,18 @@ public class Server extends WebSocketServer {
         m.put("type", type);
         m.put("content", content);
         return m;
+    }
+
+    private HashMap<String, String> textMessageMapBlueprint(String type, String content, String name, String time, String id) {
+        HashMap<String, String> m = mapBlueprint(type, content);
+        m.put("time", time);
+        m.put("name", name);
+        m.put("id", id);
+        return m;
+    }
+
+    private HashMap<String, String> textMessageMapBlueprint(String type, String content, String name, String time) {
+        return textMessageMapBlueprint(type, content, name, time, "");
     }
 
     private boolean isValidMessage(@NotNull HashMap<String, String> data, String[] args) {
