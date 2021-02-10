@@ -57,12 +57,13 @@ public class Server extends WebSocketServer {
             case "connect":
                 //if it is an init message, tell it the database handler and return the generated id to connection
                 String id = database.newConnection(conn, data.get("content"));
-                sendMessageToConn(conn, mapBlueprint("id", id));
+                sendMessageToConn(conn, mapBlueprint("connect_id", id));
                 break;
             case "connect_with_id":
                 //if it is an init message, tell it the database handler and return the generated id to connection
                 if (isValidMessage(data, new String[]{"id"})) {
                     database.newConnection(conn, data.get("content"), data.get("id"));
+                    sendMessageToConn(conn, mapBlueprint("connect_id", data.get("id")));
                 } else {
                     sendMessageToConn(conn, mapBlueprint("error", "Invalid message with 'connect_with_id'"));
                 }
@@ -125,8 +126,10 @@ public class Server extends WebSocketServer {
         for (User u : User.getUsers()) {
             if (u.getConnection().equals(exceptConnection)) {
                 continue;
+            } else {
+                sendMessageToConn(u.getConnection(), mapString);
             }
-            sendMessageToConn(u.getConnection(), mapString);
+
 
         }
     }
