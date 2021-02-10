@@ -90,17 +90,36 @@ public class Server extends WebSocketServer {
                 if (requested_user.exists) {
                     String chatID = Chat.newChat(User.getUserByConnection(conn), requested_user);
 
-                    HashMap<String, String> map = mapBlueprint("new_private_chat", chatID);
+                    HashMap<String, String> map = mapBlueprint("join_chat", chatID);
                     map.put("name", requested_user.getName());
                     sendMessageToConn(conn, map);
 
-                    map = mapBlueprint("new_private_chat", chatID);
+                    map = mapBlueprint("join_chat", chatID);
                     map.put("name", User.getUserByConnection(conn).getName());
                     sendMessageToConn(requested_user.getConnection(), map);
 
                 } else {
                     sendMessageToConn(conn, mapBlueprint("user_not_found", "User does not exist!"));
                 }
+                break;
+            case "add_user_to_chat":
+                if (isValidMessage(data, new String[]{"user_id", "chat_id"})) {
+                    requested_user = User.getUserById(data.get("user_id"));
+                    Chat requested_chat = Chat.getChatByID(data.get("chat_id"));
+                    if (requested_user.exists) {
+                        if (requested_chat != null) {
+                            requested_chat.addUser(requested_user);
+                            sendMessageToConn(requested_user.getConnection(), mapBlueprint("join_chat", requested_chat.getID()));
+                        } else {
+                            sendMessageToConn(conn, mapBlueprint("chat_not_found", "Chat does not exist!"));
+                        }
+                    } else {
+                        sendMessageToConn(conn, mapBlueprint("user_not_found", "User does not exist!"));
+                    }
+                } else {
+                    sendMessageToConn(conn, mapBlueprint("validation_error", "Either user_id or chat_id missing!"));
+                }
+
                 break;
             case "message_to_chat":
                 String chatID = data.get("id");

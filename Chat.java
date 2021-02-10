@@ -22,6 +22,14 @@ public class Chat {
         return users;
     }
 
+    public void addUser(User user) {
+        users.add(user);
+    }
+
+    public String getID() {
+        return id;
+    }
+
     public static String newChat(User user_1, User user_2) {
         String id = Util.generateUniqueString(20, getChatIDs());
         new Chat(user_1, user_2, id);
@@ -75,4 +83,6 @@ public class Chat {
         }
         return null;
     }
+
+
 }
