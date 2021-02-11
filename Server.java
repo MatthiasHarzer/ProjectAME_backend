@@ -89,14 +89,8 @@ public class Server extends WebSocketServer {
                 requested_user = User.getUserById(data.get("content"));
                 if (requested_user.exists) {
                     String chatID = Chat.newChat(User.getUserByConnection(conn), requested_user);
-
-                    HashMap<String, String> map = mapBlueprint("join_chat", chatID);
-                    map.put("name", requested_user.getName());
-                    sendMessageToConn(conn, map);
-
-                    map = mapBlueprint("join_chat", chatID);
-                    map.put("name", User.getUserByConnection(conn).getName());
-                    sendMessageToConn(requested_user.getConnection(), map);
+                    sendMessageToConn(conn, groupJoinMapBlueprint("join_chat", chatID, chatID, User.getUserByConnection(conn)));
+                    sendMessageToConn(requested_user.getConnection(), groupJoinMapBlueprint("join_chat", chatID, chatID, requested_user));
 
                 } else {
                     sendMessageToConn(conn, mapBlueprint("user_not_found", "User does not exist!"));
@@ -109,7 +103,9 @@ public class Server extends WebSocketServer {
                     if (requested_user.exists) {
                         if (requested_chat != null) {
                             requested_chat.addUser(requested_user);
-                            sendMessageToConn(requested_user.getConnection(), mapBlueprint("join_chat", requested_chat.getID()));
+
+                            sendMessageToConn(requested_user.getConnection(), groupJoinMapBlueprint("join_chat", requested_chat.getID(), requested_chat.getID(), requested_user));
+                            sendMessageToUsers(requested_chat.getUsers(), groupJoinMapBlueprint("user_joined_chat", requested_chat.getID(), requested_chat.getID(), null), requested_user.getConnection());
                         } else {
                             sendMessageToConn(conn, mapBlueprint("chat_not_found", "Chat does not exist!"));
                         }
@@ -122,7 +118,10 @@ public class Server extends WebSocketServer {
 
                 break;
             case "message_to_chat":
-                String chatID = data.get("id");
+                if (!isValidMessage(data, new String[]{"chat_id"})) {
+                    break;
+                }
+                String chatID = data.get("chat_id");
                 if (Chat.getChatIDs().contains(chatID)) {
                     sendMessageToUsers(Chat.getChatByID(chatID).getUsers(), textMessageMapBlueprint("message_from_chat", data.get("content"), User.getUserByConnection(conn).getName(), time, chatID));
                 } else {
@@ -174,6 +173,20 @@ public class Server extends WebSocketServer {
         } catch (WebsocketNotConnectedException e) {
             //A websocket that just disconnects can't receive any messages -> Exception, ignore
         }
+
+    }
+
+    private HashMap<String, String> groupJoinMapBlueprint(String type, String content, String chatID, User user) throws IOException {
+        HashMap<String, String> m = mapBlueprint(type, content);
+        List<User> users = Chat.getChatByID(chatID).getUsers();
+        try {
+            users.remove(user);
+        } catch (NullPointerException e) {
+        }
+        m.put("users", objectToString(users));
+        m.put("chat_id", chatID);
+        return m;
+
 
     }
 
