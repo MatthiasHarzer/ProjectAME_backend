@@ -14,6 +14,7 @@ import org.java_websocket.server.WebSocketServer;
 import org.jetbrains.annotations.NotNull;
 
 public class Server extends WebSocketServer {
+    public static String __version = "0.1.0";
     private DatabaseHandler database;
 
 
@@ -315,6 +316,8 @@ public class Server extends WebSocketServer {
                 break;
             } else if (in.equals("users")) {
                 s.database.printUsers();
+            } else if (in.equals("version")) {
+                System.out.println("Running v" + Server.__version);
             }
         }
 
