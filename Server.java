@@ -14,7 +14,7 @@ import org.java_websocket.server.WebSocketServer;
 import org.jetbrains.annotations.NotNull;
 
 public class Server extends WebSocketServer {
-    public static String __version = "0.1.0";
+    public static String __version = "0.1.1";
     private DatabaseHandler database;
 
 
