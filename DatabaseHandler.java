@@ -35,6 +35,8 @@ public class DatabaseHandler {
                 + "FROM messages WHERE time BETWEEN ? AND ?";
         List<Map<String, String>> messages = new ArrayList<>();
 
+//        System.out.println("from: " + from + " to:" + to);
+
         try (PreparedStatement pstmt = sqliteconn.prepareStatement(sql)) {
 
 
@@ -46,6 +48,7 @@ public class DatabaseHandler {
 
             // loop through the result set
             while (rs.next()) {
+
                 Map<String, String> m = new HashMap<>();
 //                System.out.println(rs.getString("id"));
                 m.put("id", rs.getString("id"));
