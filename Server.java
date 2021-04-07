@@ -14,7 +14,7 @@ import org.java_websocket.server.WebSocketServer;
 import org.jetbrains.annotations.NotNull;
 
 public class Server extends WebSocketServer {
-    public static String __version = "0.1.1";
+    public static String __version = "0.1.2";
     private DatabaseHandler database;
 
 
@@ -46,7 +46,7 @@ public class Server extends WebSocketServer {
     }
 
     //process the incoming message
-    private void processMessage(@NotNull HashMap<String, String> data, WebSocket conn) throws IOException {
+    private void processMessage(@NotNull HashMap<String, String> data, WebSocket conn) throws Throwable {
         if (!isValidMessage(data, new String[]{"type", "content"})) {
             sendMessageToConn(conn, mapBlueprint("error", "Invalid message"));
             return;
@@ -73,15 +73,18 @@ public class Server extends WebSocketServer {
             case "message":
                 //send the message to everyone connected
                 database.newMessage(conn, data.get("content"), time);
-                sendMessageToUsers(User.getUsers(), textMessageMapBlueprint("message", data.get("content"), User.getUserByConnection(conn).getName(), time));
+                receivedMessage(data.get("content"), "public", conn);
+//                sendMessageToChat();
+//                sendMessageToUsers(User.getUsers(), textMessageMapBlueprint("message", data.get("content"), User.getUserByConnection(conn).getName(), time, User.getUserByConnection(conn).getId()));
                 break;
 
             case "request_message_history":
                 if (isValidMessage(data, new String[]{"from", "to"})) {
-                    List<Map<String, String>> messages = database.getAllMessages(Long.parseLong(data.get("from")), Long.parseLong(data.get("to")));
+                    String chat = data.get("content").length() <= 0 ? "public" : data.get("content");
+                    List<Map<String, String>> messages = database.getAllMessages(chat, Long.parseLong(data.get("from")), Long.parseLong(data.get("to")));
                     System.out.println("Sending " + messages.size() + " messages");
                     HashMap<String, String> map = mapBlueprint("message_history", objectToString(messages));
-                    sendMessageToConn(conn, objectToString(map));
+                    sendMessageToConn(conn, map);
                 } else {
                     sendMessageToConn(conn, mapBlueprint("error", "Invalid message with 'request_message_history'"));
                 }
@@ -89,7 +92,9 @@ public class Server extends WebSocketServer {
             case "request_private_chat":
                 requested_user = User.getUserById(data.get("content"));
                 if (requested_user.exists) {
+
                     String chatID = Chat.newChat(User.getUserByConnection(conn), requested_user);
+
                     sendMessageToConn(conn, groupJoinMapBlueprint("join_chat", chatID, chatID, User.getUserByConnection(conn)));
                     sendMessageToConn(requested_user.getConnection(), groupJoinMapBlueprint("join_chat", chatID, chatID, requested_user));
 
@@ -122,12 +127,8 @@ public class Server extends WebSocketServer {
                 if (!isValidMessage(data, new String[]{"chat_id"})) {
                     break;
                 }
-                String chatID = data.get("chat_id");
-                if (Chat.getChatIDs().contains(chatID)) {
-                    sendMessageToUsers(Chat.getChatByID(chatID).getUsers(), textMessageMapBlueprint("message_from_chat", data.get("content"), User.getUserByConnection(conn).getName(), time, chatID));
-                } else {
-                    sendMessageToConn(conn, mapBlueprint("chat_not_found", "Couldn't send message to chat " + data.get("id") + "."));
-                }
+                receivedMessage(data.get("content"), data.get("chat_id"), conn);
+
                 break;
         }
         switch (data.get("type")) {
@@ -144,38 +145,60 @@ public class Server extends WebSocketServer {
 //        database.printUsers();
     }
 
-    private void sendMessageToUsers(List<User> users, HashMap<String, String> map, WebSocket exceptConnection) throws IOException {
-        sendMessageToUsers(users, objectToString(map), exceptConnection);
+    // Handles messages from authorConn to chatID
+    private void receivedMessage(String message, String chatID, WebSocket authorConn) throws IOException {
+//        sendMessageToChat(message, chatID, authorConn);
+
+        Chat chat = Chat.getChatByID(chatID);
+
+        if (chat.exists) {
+            sendMessageToChat(message, chatID, authorConn);
+//            sendMessageToUsers(Chat.getChatByID(chatID).getUsers(), textMessageMapBlueprint("message_from_chat", data.get("content"), User.getUserByConnection(conn).getName(), time, chatID, User.getUserByConnection(conn).getId()));
+        } else {
+            sendMessageToConn(authorConn, mapBlueprint("chat_not_found", "Couldn't send message to chat " + chatID + "."));
+        }
     }
 
-    private void sendMessageToUsers(List<User> users, String mapString, WebSocket exceptConnection) {
+    // Sends a message to a given chat (chat id)
+    private void sendMessageToChat(String message, String chatId, WebSocket authorConn) throws IOException {
+        User author = User.getUserByConnection(authorConn);
+        Chat chat = Chat.getChatByID(chatId);
+        String time = System.currentTimeMillis() + "";
+
+        if (chat != null) {
+            HashMap<String, String> m = textMessageMapBlueprint("message", message, author.getName(), time, chatId, author.getId());
+
+            sendMessageToUsers(chat.getUsers(), m);
+        }
+
+    }
+
+    // Send a message-map to a list of users
+    private void sendMessageToUsers(List<User> users, HashMap<String, String> map, WebSocket exceptConnection) throws IOException {
         for (User u : users) {
             if (u.getConnection().equals(exceptConnection)) {
                 continue;
             } else {
-                sendMessageToConn(u.getConnection(), mapString);
+                sendMessageToConn(u.getConnection(), map);
             }
-
-
         }
     }
 
+
     private void sendMessageToUsers(List<User> users, HashMap<String, String> map) throws IOException {
-        sendMessageToUsers(users, objectToString(map), null);
+        sendMessageToUsers(users, map, null);
     }
+
 
     private void sendMessageToConn(WebSocket conn, HashMap<String, String> map) throws IOException {
-        sendMessageToConn(conn, objectToString(map));
-    }
-
-    private void sendMessageToConn(WebSocket conn, String mapString) {
         try {
-            conn.send(mapString);
+            conn.send(objectToString(map));
         } catch (WebsocketNotConnectedException e) {
             //A websocket that just disconnects can't receive any messages -> Exception, ignore
         }
 
     }
+
 
     private HashMap<String, String> groupJoinMapBlueprint(String type, String content, String chatID, User user) throws IOException {
         HashMap<String, String> m = mapBlueprint(type, content);
@@ -198,17 +221,19 @@ public class Server extends WebSocketServer {
         return m;
     }
 
-    private HashMap<String, String> textMessageMapBlueprint(String type, String content, String name, String time, String id) {
+    private HashMap<String, String> textMessageMapBlueprint(String type, String content, String name, String time, String chatID, String userID) {
         HashMap<String, String> m = mapBlueprint(type, content);
         m.put("time", time);
         m.put("name", name);
-        m.put("id", id);
+        m.put("id", chatID);
+        m.put("user_id", userID);
         return m;
     }
 
-    private HashMap<String, String> textMessageMapBlueprint(String type, String content, String name, String time) {
-        return textMessageMapBlueprint(type, content, name, time, "");
+    private HashMap<String, String> textMessageMapBlueprint(String type, String content, String name, String time, String userID) {
+        return textMessageMapBlueprint(type, content, name, time, "", userID);
     }
+
 
     private boolean isValidMessage(@NotNull HashMap<String, String> data, String[] args) {
         for (String arg : args) {
@@ -262,6 +287,8 @@ public class Server extends WebSocketServer {
             log(e.getMessage() + " @server.Server.onMessage ClassNotFoundException");
         } catch (IllegalArgumentException e) {
             log(e.getMessage() + " @server.Server.onMessage IllegalArgumentException");
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
         }
     }
 
