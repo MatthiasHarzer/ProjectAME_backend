@@ -14,15 +14,15 @@ public class DatabaseHandler {
     private Server server;
 
 
+    //✔
     public DatabaseHandler(Server server) throws ClassNotFoundException, SQLException {
         this.server = server;
         User.createDummyUser();
-        Chat.creatPublicChat();
+//        Chat.creatPublicChat();
 
         Class.forName("org.sqlite.JDBC");
         sqliteconn = DriverManager.getConnection(databaseURL);
         log("Connected to SQLite");
-        checkTables();
     }
 
     public List<Map<String, String>> getAllMessages(String chat, long from, long to) {
@@ -65,8 +65,9 @@ public class DatabaseHandler {
         return messages;
     }
 
+    //✔
     public void newMessage(WebSocket conn, String content, String time) {
-        String sql = "INSERT INTO messages(id,content,author,author_id,time) VALUES(?,?,?,?,?)";
+        String sql = "INSERT INTO public(id,content,author,author_id,time) VALUES(?,?,?,?,?)";
 
         String mid = Util.generateUniqueString(32, getAllMessageIDs());
 
@@ -86,10 +87,12 @@ public class DatabaseHandler {
         }
     }
 
+    //✔ -> newConnection
     public String newConnection(WebSocket conn, String name) {
         return newConnection(conn, name, Util.generateUniqueString(10, User.getUser_ids()));
     }
 
+    //✔
     public String newConnection(WebSocket conn, String name, String id) {
         return User.createNewUser(conn, name, id).getId();
     }
@@ -98,10 +101,11 @@ public class DatabaseHandler {
         User.removeUser(conn);
     }
 
+    //✔
     private List<String> getAllMessageIDs() {
         List<String> ids = new ArrayList<>();
 
-        String sql = "SELECT id FROM messages";
+        String sql = "SELECT id FROM public";
         try {
             Statement stmt = sqliteconn.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
@@ -115,8 +119,9 @@ public class DatabaseHandler {
         return ids;
     }
 
-    private void checkTables() {
-        String userTable = "CREATE TABLE IF NOT EXISTS public (\n"
+    //✔
+    public void checkTable(String chatTable) {
+        String userTable = "CREATE TABLE IF NOT EXISTS " + chatTable + " (\n"
                 + "     id text PRIMARY KEY, \n"
                 + "     content text,\n"
                 + "     author text,\n"
@@ -126,6 +131,7 @@ public class DatabaseHandler {
         executeSQL(userTable);
     }
 
+    //✔
     private void executeSQL(String sql) {
         try {
             Statement stmt = sqliteconn.createStatement();
@@ -135,6 +141,7 @@ public class DatabaseHandler {
         }
     }
 
+    //✔
     private void log(String s) {
         Util.log(s);
     }

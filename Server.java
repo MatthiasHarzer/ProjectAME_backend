@@ -14,36 +14,24 @@ import org.java_websocket.server.WebSocketServer;
 import org.jetbrains.annotations.NotNull;
 
 public class Server extends WebSocketServer {
-    public static String __version = "0.1.2";
+    public static String __version = "0.2.1";
+    public static int PORT = 5555;
     private DatabaseHandler database;
 
 
+    //✔
     public Server(int port) {
         super(new InetSocketAddress(port));
-        init();
-    }
-
-    public Server(InetSocketAddress address) {
-        super(address);
-        init();
-    }
-
-    public Server(int port, Draft_6455 draft) {
-        super(new InetSocketAddress(port), Collections.singletonList(draft));
-        init();
-    }
-
-
-    public void init() {
         log("ChatServer started at " + getAddress());
 
         try {
             database = new DatabaseHandler(this);
+            database.checkTable("public");      //Check for public table
         } catch (ClassNotFoundException | SQLException e) {
             log(e.getMessage() + " @server.Server.init while trying to connect to DatabaseHandler");
         }
-
     }
+
 
     //process the incoming message
     private void processMessage(@NotNull HashMap<String, String> data, WebSocket conn) throws Throwable {
@@ -60,6 +48,7 @@ public class Server extends WebSocketServer {
                 String id = database.newConnection(conn, data.get("content"));
                 sendMessageToConn(conn, mapBlueprint("connect_id", id));
                 break;
+
             case "connect_with_id":
                 //if it is an init message, tell it the database handler and return the generated id to connection
                 if (isValidMessage(data, new String[]{"id"})) {
@@ -145,34 +134,28 @@ public class Server extends WebSocketServer {
 //        database.printUsers();
     }
 
+    //✔
     // Handles messages from authorConn to chatID
     private void receivedMessage(String message, String chatID, WebSocket authorConn) throws IOException {
-//        sendMessageToChat(message, chatID, authorConn);
-
-        Chat chat = Chat.getChatByID(chatID);
-
-        if (chat.exists) {
-            sendMessageToChat(message, chatID, authorConn);
-//            sendMessageToUsers(Chat.getChatByID(chatID).getUsers(), textMessageMapBlueprint("message_from_chat", data.get("content"), User.getUserByConnection(conn).getName(), time, chatID, User.getUserByConnection(conn).getId()));
-        } else {
-            sendMessageToConn(authorConn, mapBlueprint("chat_not_found", "Couldn't send message to chat " + chatID + "."));
-        }
+        String time = System.currentTimeMillis() + "";
+        sendMessageToUsers(User.getUsers(), textMessageMapBlueprint("message", message, User.getUserByConnection(authorConn).getName(), time, User.getUserByConnection(authorConn).getId()));
     }
 
     // Sends a message to a given chat (chat id)
-    private void sendMessageToChat(String message, String chatId, WebSocket authorConn) throws IOException {
-        User author = User.getUserByConnection(authorConn);
-        Chat chat = Chat.getChatByID(chatId);
-        String time = System.currentTimeMillis() + "";
+//    private void sendMessageToChat(String message, String chatId, WebSocket authorConn) throws IOException {
+//        User author = User.getUserByConnection(authorConn);
+//        Chat chat = Chat.getChatByID(chatId);
+//        String time = System.currentTimeMillis() + "";
+//
+//        if (chat != null) {
+//            HashMap<String, String> m = textMessageMapBlueprint("message", message, author.getName(), time, chatId, author.getId());
+//
+//            sendMessageToUsers(chat.getUsers(), m);
+//        }
+//
+//    }
 
-        if (chat != null) {
-            HashMap<String, String> m = textMessageMapBlueprint("message", message, author.getName(), time, chatId, author.getId());
-
-            sendMessageToUsers(chat.getUsers(), m);
-        }
-
-    }
-
+    //✔
     // Send a message-map to a list of users
     private void sendMessageToUsers(List<User> users, HashMap<String, String> map, WebSocket exceptConnection) throws IOException {
         for (User u : users) {
@@ -184,12 +167,12 @@ public class Server extends WebSocketServer {
         }
     }
 
-
+    //✔
     private void sendMessageToUsers(List<User> users, HashMap<String, String> map) throws IOException {
         sendMessageToUsers(users, map, null);
     }
 
-
+    //✔
     private void sendMessageToConn(WebSocket conn, HashMap<String, String> map) throws IOException {
         try {
             conn.send(objectToString(map));
@@ -292,13 +275,14 @@ public class Server extends WebSocketServer {
         }
     }
 
-    @Override
-    public void onMessage(WebSocket conn, ByteBuffer message) {
-//        broadcast(message.array());
-//        System.out.println(conn + ": " + message);
-        log(conn.getRemoteSocketAddress().getAddress().getHostAddress() + ": " + message);
-    }
+//    @Override
+//    public void onMessage(WebSocket conn, ByteBuffer message) {
+////        broadcast(message.array());
+////        System.out.println(conn + ": " + message);
+//        log(conn.getRemoteSocketAddress().getAddress().getHostAddress() + ": " + message);
+//    }
 
+    //✔
     @Override
     public void onOpen(WebSocket conn, ClientHandshake handshake) {
         try {
@@ -311,6 +295,7 @@ public class Server extends WebSocketServer {
 //        databas.newConnection(conn.getRemoteSocketAddress().getAddress().getHostAddress(), );
     }
 
+    //✔
     @Override
     public void onError(WebSocket conn, Exception ex) {
         ex.printStackTrace();
@@ -319,6 +304,7 @@ public class Server extends WebSocketServer {
         }
     }
 
+    //✔
     @Override
     public void onStart() {
 //        System.out.println("Server started!");
@@ -328,9 +314,8 @@ public class Server extends WebSocketServer {
     }
 
     public static void main(String[] args) throws InterruptedException, IOException {
-        int port = 5555; // 843 flash policy port
 
-        Server s = new Server(port);
+        Server s = new Server(PORT);
         s.start();
 //        System.out.println("ChatServer started on port: " + s.getPort());
 
@@ -341,8 +326,6 @@ public class Server extends WebSocketServer {
             if (in.equals("exit")) {
                 s.stop(1000);
                 break;
-            } else if (in.equals("users")) {
-                s.database.printUsers();
             } else if (in.equals("version")) {
                 System.out.println("Running v" + Server.__version);
             }

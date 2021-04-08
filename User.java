@@ -5,7 +5,7 @@ import org.java_websocket.WebSocket;
 import java.util.ArrayList;
 import java.util.List;
 
-
+//✔
 public class User {
 
     private static List<String> user_ids = new ArrayList<>();
@@ -75,6 +75,8 @@ public class User {
         return sharecode;
     }
 
+    //✔
+    //For default user
     private User(WebSocket connection, String name, String id) {
         this.id = id;
         this.sharecode = this.id;
@@ -91,6 +93,8 @@ public class User {
         this.exists = true;
     }
 
+    //✔
+    //For dummyuser
     private User(String name, String id, String ip) {
         this.id = id;
         this.sharecode = this.id;
@@ -125,6 +129,7 @@ public class User {
         Util.log(s);
     }
 
+    //✔
     public static void createDummyUser() {
         if (dummyuser == null) {
             dummyuser = new User("undefined", "undefined", "undefined");
