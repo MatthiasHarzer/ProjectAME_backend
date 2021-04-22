@@ -18,21 +18,20 @@ public class DatabaseHandler {
     public DatabaseHandler(Server server) throws ClassNotFoundException, SQLException {
         this.server = server;
         User.createDummyUser();
-//        Chat.creatPublicChat();
 
         Class.forName("org.sqlite.JDBC");
         sqliteconn = DriverManager.getConnection(databaseURL);
         log("Connected to SQLite");
     }
 
-    public List<Map<String, String>> getAllMessages(String chat, long from, long to) {
+    public List<Map<String, String>> getAllMessages(long from, long to) {
         if (from > to) {
             long t = to;
             to = from;
             from = t;
         }
         String sql = "SELECT id,content,author,author_id,time "
-                + "FROM " + chat + " WHERE time BETWEEN ? AND ?";
+                + "FROM public WHERE time BETWEEN ? AND ?";
         List<Map<String, String>> messages = new ArrayList<>();
 
 //        System.out.println("from: " + from + " to:" + to);
@@ -120,8 +119,8 @@ public class DatabaseHandler {
     }
 
     //✔
-    public void checkTable(String chatTable) {
-        String userTable = "CREATE TABLE IF NOT EXISTS " + chatTable + " (\n"
+    public void checkTable() {
+        String userTable = "CREATE TABLE IF NOT EXISTS public (\n"
                 + "     id text PRIMARY KEY, \n"
                 + "     content text,\n"
                 + "     author text,\n"

@@ -14,7 +14,7 @@ import org.java_websocket.server.WebSocketServer;
 import org.jetbrains.annotations.NotNull;
 
 public class Server extends WebSocketServer {
-    public static String __version = "0.2.1";
+    public static String __version = "0.2.2";
     public static int PORT = 5555;
     private DatabaseHandler database;
 
@@ -26,7 +26,7 @@ public class Server extends WebSocketServer {
 
         try {
             database = new DatabaseHandler(this);
-            database.checkTable("public");      //Check for public table
+            database.checkTable();      //Check for public table
         } catch (ClassNotFoundException | SQLException e) {
             log(e.getMessage() + " @server.Server.init while trying to connect to DatabaseHandler");
         }
@@ -39,9 +39,9 @@ public class Server extends WebSocketServer {
             sendMessageToConn(conn, mapBlueprint("error", "Invalid message"));
             return;
         }
-        User requested_user;
         String time = System.currentTimeMillis() + "";
         log("Received type '" + data.get("type") + "' with content '" + data.get("content") + "' from " + User.getUserByConnection(conn).getName() + "@" + User.getUserByConnection(conn).getIp() + " (User " + User.getUserByConnection(conn).getId() + ")");
+
         switch (data.get("type")) {
             case "connect":
                 //if it is an init message, tell it the database handler and return the generated id to connection
@@ -62,15 +62,15 @@ public class Server extends WebSocketServer {
             case "message":
                 //send the message to everyone connected
                 database.newMessage(conn, data.get("content"), time);
-                receivedMessage(data.get("content"), "public", conn);
+                User author = User.getUserByConnection(conn);
+                sendMessageToUsers(User.getUsers(), textMessageMapBlueprint("message", data.get("content"), author.getName(), time, author.getId()));
 //                sendMessageToChat();
 //                sendMessageToUsers(User.getUsers(), textMessageMapBlueprint("message", data.get("content"), User.getUserByConnection(conn).getName(), time, User.getUserByConnection(conn).getId()));
                 break;
 
             case "request_message_history":
                 if (isValidMessage(data, new String[]{"from", "to"})) {
-                    String chat = data.get("content").length() <= 0 ? "public" : data.get("content");
-                    List<Map<String, String>> messages = database.getAllMessages(chat, Long.parseLong(data.get("from")), Long.parseLong(data.get("to")));
+                    List<Map<String, String>> messages = database.getAllMessages(Long.parseLong(data.get("from")), Long.parseLong(data.get("to")));
                     System.out.println("Sending " + messages.size() + " messages");
                     HashMap<String, String> map = mapBlueprint("message_history", objectToString(messages));
                     sendMessageToConn(conn, map);
@@ -78,47 +78,7 @@ public class Server extends WebSocketServer {
                     sendMessageToConn(conn, mapBlueprint("error", "Invalid message with 'request_message_history'"));
                 }
                 break;
-            case "request_private_chat":
-                requested_user = User.getUserById(data.get("content"));
-                if (requested_user.exists) {
 
-                    String chatID = Chat.newChat(User.getUserByConnection(conn), requested_user);
-
-                    sendMessageToConn(conn, groupJoinMapBlueprint("join_chat", chatID, chatID, User.getUserByConnection(conn)));
-                    sendMessageToConn(requested_user.getConnection(), groupJoinMapBlueprint("join_chat", chatID, chatID, requested_user));
-
-                } else {
-                    sendMessageToConn(conn, mapBlueprint("user_not_found", "User does not exist!"));
-                }
-                break;
-            case "add_user_to_chat":
-                if (isValidMessage(data, new String[]{"user_id", "chat_id"})) {
-                    requested_user = User.getUserById(data.get("user_id"));
-                    Chat requested_chat = Chat.getChatByID(data.get("chat_id"));
-                    if (requested_user.exists) {
-                        if (requested_chat != null) {
-                            requested_chat.addUser(requested_user);
-
-                            sendMessageToConn(requested_user.getConnection(), groupJoinMapBlueprint("join_chat", requested_chat.getID(), requested_chat.getID(), requested_user));
-                            sendMessageToUsers(requested_chat.getUsers(), groupJoinMapBlueprint("user_joined_chat", requested_chat.getID(), requested_chat.getID(), null), requested_user.getConnection());
-                        } else {
-                            sendMessageToConn(conn, mapBlueprint("chat_not_found", "Chat does not exist!"));
-                        }
-                    } else {
-                        sendMessageToConn(conn, mapBlueprint("user_not_found", "User does not exist!"));
-                    }
-                } else {
-                    sendMessageToConn(conn, mapBlueprint("validation_error", "Either user_id or chat_id missing!"));
-                }
-
-                break;
-            case "message_to_chat":
-                if (!isValidMessage(data, new String[]{"chat_id"})) {
-                    break;
-                }
-                receivedMessage(data.get("content"), data.get("chat_id"), conn);
-
-                break;
         }
         switch (data.get("type")) {
             case "connect":
@@ -134,42 +94,19 @@ public class Server extends WebSocketServer {
 //        database.printUsers();
     }
 
-    //✔
-    // Handles messages from authorConn to chatID
-    private void receivedMessage(String message, String chatID, WebSocket authorConn) throws IOException {
-        String time = System.currentTimeMillis() + "";
-        sendMessageToUsers(User.getUsers(), textMessageMapBlueprint("message", message, User.getUserByConnection(authorConn).getName(), time, User.getUserByConnection(authorConn).getId()));
-    }
 
-    // Sends a message to a given chat (chat id)
-//    private void sendMessageToChat(String message, String chatId, WebSocket authorConn) throws IOException {
-//        User author = User.getUserByConnection(authorConn);
-//        Chat chat = Chat.getChatByID(chatId);
-//        String time = System.currentTimeMillis() + "";
-//
-//        if (chat != null) {
-//            HashMap<String, String> m = textMessageMapBlueprint("message", message, author.getName(), time, chatId, author.getId());
-//
-//            sendMessageToUsers(chat.getUsers(), m);
-//        }
-//
-//    }
+    private void sendMessageToUsers(List<User> users, HashMap<String, String> map) throws IOException {
+        sendMessageToUsers(users, map, null);
+    }
 
     //✔
     // Send a message-map to a list of users
     private void sendMessageToUsers(List<User> users, HashMap<String, String> map, WebSocket exceptConnection) throws IOException {
         for (User u : users) {
-            if (u.getConnection().equals(exceptConnection)) {
-                continue;
-            } else {
+            if (!u.getConnection().equals(exceptConnection)) {
                 sendMessageToConn(u.getConnection(), map);
             }
         }
-    }
-
-    //✔
-    private void sendMessageToUsers(List<User> users, HashMap<String, String> map) throws IOException {
-        sendMessageToUsers(users, map, null);
     }
 
     //✔
@@ -179,21 +116,6 @@ public class Server extends WebSocketServer {
         } catch (WebsocketNotConnectedException e) {
             //A websocket that just disconnects can't receive any messages -> Exception, ignore
         }
-
-    }
-
-
-    private HashMap<String, String> groupJoinMapBlueprint(String type, String content, String chatID, User user) throws IOException {
-        HashMap<String, String> m = mapBlueprint(type, content);
-        List<User> users = Chat.getChatByID(chatID).getUsers();
-        try {
-            users.remove(user);
-        } catch (NullPointerException e) {
-        }
-        m.put("users", objectToString(users));
-        m.put("chat_id", chatID);
-        return m;
-
 
     }
 
@@ -320,14 +242,22 @@ public class Server extends WebSocketServer {
 //        System.out.println("ChatServer started on port: " + s.getPort());
 
         BufferedReader sysin = new BufferedReader(new InputStreamReader(System.in));
+        label:
         while (true) {
             String in = sysin.readLine();
 //            s.broadcast(in);
-            if (in.equals("exit")) {
-                s.stop(1000);
-                break;
-            } else if (in.equals("version")) {
-                System.out.println("Running v" + Server.__version);
+            switch (in) {
+                case "exit":
+                    s.stop(1000);
+                    break label;
+                case "users":
+                    for (User user : User.getUsers()) {
+                        System.out.println(user);
+                    }
+                    break;
+                case "version":
+                    System.out.println("Running v" + Server.__version);
+                    break;
             }
         }
 
