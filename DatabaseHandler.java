@@ -7,47 +7,52 @@ import java.util.*;
 
 
 public class DatabaseHandler {
-    private final String filePath = System.getProperty("user.dir");
-    private final String databaseName = "database.db";
-    private final String databaseURL = "jdbc:sqlite:" + filePath + "/db/" + databaseName;
-    private Connection sqliteconn;
-    private Server server;
+    private final String filePath = System.getProperty("user.dir");         //Dateipfad zur Server-Datei
+    private final String databaseName = "database.db";                      //Name der Datenbank
+    private final String databaseURL = "jdbc:sqlite:" + filePath + "/db/" + databaseName;   //Dateipfad zu Datenbank
+    private Connection sqliteconn;                                          //SQLite conncetion
 
 
-    //✔
-    public DatabaseHandler(Server server) throws ClassNotFoundException, SQLException {
-        this.server = server;
-        User.createDummyUser();
+    /**
+     * Erstellt Dummyuserund und startet sqlite-Connection + checkt ob der nachrichten Table existiert
+     *
+     * @throws ClassNotFoundException Error
+     * @throws SQLException           Error
+     */
+    public DatabaseHandler() throws ClassNotFoundException, SQLException {
 
-        Class.forName("org.sqlite.JDBC");
-        sqliteconn = DriverManager.getConnection(databaseURL);
+        User.createDummyUser();     //Erstellt Dummyuser (wird als fallback verwendet)
+
+        Class.forName("org.sqlite.JDBC");   //Braucht man aus GRÜNDEN
+        sqliteconn = DriverManager.getConnection(databaseURL);  //Verbindet sich mit sqlite
         log("Connected to SQLite");
+
+        checkTable();   //Überprüft den Nachrichten Table
     }
 
+    /**
+     * Sucht alle Nachrichten zwischen from und to
+     *
+     * @param from start-Wert (ms)
+     * @param to   end-Wert (ms)
+     * @return Liste an Nachrichten
+     */
     public List<Map<String, String>> getAllMessages(long from, long to) {
-        if (from > to) {
+        if (from > to) {    //Sollten die Werte vertauscht sein, werden diese einfach korrigiert
             long t = to;
             to = from;
             from = t;
         }
-        String sql = "SELECT id,content,author,author_id,time "
+        String sql = "SELECT id,content,author,author_id,time " //SQL umd alle Nachrichten zwischen from und to zu filtern
                 + "FROM public WHERE time BETWEEN ? AND ?";
         List<Map<String, String>> messages = new ArrayList<>();
 
-//        System.out.println("from: " + from + " to:" + to);
-
-        try (PreparedStatement pstmt = sqliteconn.prepareStatement(sql)) {
-
-
-            //
+        try (PreparedStatement pstmt = sqliteconn.prepareStatement(sql)) {  //Versuche SQL auzuführen
             pstmt.setLong(1, from);
             pstmt.setLong(2, to);
             ResultSet rs = pstmt.executeQuery();
 
-
-            // loop through the result set
-            while (rs.next()) {
-
+            while (rs.next()) { //Durch jeden Eintrag gehen, diesen in einer Map speichern und der messages Liste hinzufügen
                 Map<String, String> m = new HashMap<>();
 //                System.out.println(rs.getString("id"));
                 m.put("id", rs.getString("id"));
@@ -60,20 +65,25 @@ public class DatabaseHandler {
         } catch (SQLException e) {
             System.out.println(e.getMessage());
         }
-//        System.out.println("------");
         return messages;
     }
 
-    //✔
+    /**
+     * Erstellt einen neuen Datenbankeintrag der Chat-Nachricht
+     *
+     * @param conn    Autor-Connection -> User
+     * @param content Inhalt der Nachricht
+     * @param time    Uhrzeit der Nachricht (in ms)
+     */
     public void newMessage(WebSocket conn, String content, String time) {
-        String sql = "INSERT INTO public(id,content,author,author_id,time) VALUES(?,?,?,?,?)";
+        String sql = "INSERT INTO public(id,content,author,author_id,time) VALUES(?,?,?,?,?)"; //SQL für neuen Eintrag
 
-        String mid = Util.generateUniqueString(32, getAllMessageIDs());
+        String mid = Util.generateUniqueString(32, getAllMessageIDs()); //Eine unique Nachrichten-ID wird generiert
 
-        String author = User.getUserByConnection(conn).getName();
+        String author = User.getUserByConnection(conn).getName();   //Sammle informationen über den Autor
         String author_id = User.getUserByConnection(conn).getId();
 
-        try (PreparedStatement pstmt = sqliteconn.prepareStatement(sql)) {
+        try (PreparedStatement pstmt = sqliteconn.prepareStatement(sql)) {  //Führe SQL aus
             pstmt.setString(1, mid);
             pstmt.setString(2, content);
             pstmt.setString(3, author);
@@ -86,25 +96,47 @@ public class DatabaseHandler {
         }
     }
 
-    //✔ -> newConnection
+    /**
+     * Überläd newConnection(WebSocket conn, String name, String id) mit einer Unique ID
+     *
+     * @param conn Autor Connection
+     * @param name Atuor Name
+     * @return Generiertes User Objekt
+     */
     public String newConnection(WebSocket conn, String name) {
         return newConnection(conn, name, Util.generateUniqueString(10, User.getUser_ids()));
     }
 
-    //✔
+    /**
+     * Es wird ein neues User Objekt erstellt mit geg. Connection, Name und ID
+     *
+     * @param conn Conncetion des Users
+     * @param name Name des Users
+     * @param id   Unique ID des Users
+     * @return Generiertes User Objekt
+     */
     public String newConnection(WebSocket conn, String name, String id) {
         return User.createNewUser(conn, name, id).getId();
     }
 
+    /**
+     * Entfernt den entsprechenden User wenn dieser disconnected
+     *
+     * @param conn User-Connection
+     */
     public void connectionClose(WebSocket conn) {
         User.removeUser(conn);
     }
 
-    //✔
+    /**
+     * Gibt alle Nachrichten IDs zurück
+     *
+     * @return Liste an IDs
+     */
     private List<String> getAllMessageIDs() {
         List<String> ids = new ArrayList<>();
 
-        String sql = "SELECT id FROM public";
+        String sql = "SELECT id FROM public";   //public = Table name
         try {
             Statement stmt = sqliteconn.createStatement();
             ResultSet rs = stmt.executeQuery(sql);
@@ -118,7 +150,9 @@ public class DatabaseHandler {
         return ids;
     }
 
-    //✔
+    /**
+     * Überprüft ob der public Table existiert und erstellt diesen ggf. (Dort werden alle Nachrichten gespeichert)
+     */
     public void checkTable() {
         String userTable = "CREATE TABLE IF NOT EXISTS public (\n"
                 + "     id text PRIMARY KEY, \n"
@@ -130,7 +164,11 @@ public class DatabaseHandler {
         executeSQL(userTable);
     }
 
-    //✔
+    /**
+     * Führt SQL-Befehler aus
+     *
+     * @param sql sql-String to execute
+     */
     private void executeSQL(String sql) {
         try {
             Statement stmt = sqliteconn.createStatement();
@@ -140,7 +178,7 @@ public class DatabaseHandler {
         }
     }
 
-    //✔
+    //log the message to the logfile and console in format [dd-MM-yyyy hh:mm:ss] <message>
     private void log(String s) {
         Util.log(s);
     }
