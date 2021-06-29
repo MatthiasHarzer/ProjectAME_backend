@@ -14,7 +14,7 @@ import org.java_websocket.server.WebSocketServer;
 
 
 public class Server extends WebSocketServer {
-    public static String __version = "0.2.4";   //Server Version (random)
+    public static String __version = "0.2.5";   //Server Version (random)
     public static int PORT = 5555;              //Server Port
     private DatabaseHandler database;           //Database Handler
 
@@ -291,7 +291,10 @@ public class Server extends WebSocketServer {
         while (running) {
             //Lese Console-Input für debug und server-stop
             String in = sysin.readLine();
-            switch (in) {
+
+            String cmd = in.split(" ")[0];
+            String[] cmd_args = in.split(" ").length > 1 ? Arrays.copyOfRange(in.split(" "), 1, in.split(" ").length) : null;
+            switch (cmd) {
                 case "exit":
                     s.stop(1000);
                     running = false;
@@ -304,6 +307,14 @@ public class Server extends WebSocketServer {
                 case "version":
                     System.out.println("Running v" + Server.__version);
                     break;
+
+                case "say":
+                    if(cmd_args != null && cmd_args.length > 0 && s.database != null){
+                        String time = System.currentTimeMillis() + "";
+                        String message = String.join(" ", cmd_args);
+                        s.database.newSystemMessage(message, time);
+                        s.sendMessageToUsers(User.getUsers(), s.textMessageMapBlueprint(message, "System", time));
+                    }
             }
         }
 

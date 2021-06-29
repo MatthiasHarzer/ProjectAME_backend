@@ -69,7 +69,7 @@ public class DatabaseHandler {
     }
 
     /**
-     * Erstellt einen neuen Datenbankeintrag der Chat-Nachricht
+     * Generiert neue Nachricht in der Datenbank
      *
      * @param conn    Autor-Connection -> User
      * @param content Inhalt der Nachricht
@@ -78,11 +78,33 @@ public class DatabaseHandler {
     public void newMessage(WebSocket conn, String content, String time) {
         String sql = "INSERT INTO public(id,content,author,author_id,time) VALUES(?,?,?,?,?)"; //SQL für neuen Eintrag
 
-        String mid = Util.generateUniqueString(32, getAllMessageIDs()); //Eine unique Nachrichten-ID wird generiert
+
 
         String author = User.getUserByConnection(conn).getName();   //Sammle informationen über den Autor
         String author_id = User.getUserByConnection(conn).getId();
 
+        commitNewMessage(content, time, author, author_id);
+    }
+    //s. o. Als System Nachricht
+    public void newSystemMessage(String content, String time){
+        log("New System Message \"" + content + "\" @ " + time);
+        String author = "System";
+        String author_id ="SERVER_";
+
+        commitNewMessage(content, time, author, author_id);
+    }
+
+    /**
+     * Erstellt einen neuen Datenbankeintrag der Chat-Nachricht
+     *
+     * @param content Inhalt der Nachricht
+     * @param time    Uhrzeit der Nachricht (in ms)
+     * @param author Name des Autors der Nachricht
+     * @param author_id UID des Autors
+     */
+    private void commitNewMessage(String content, String time,String author, String author_id) {
+        String sql = "INSERT INTO public(id,content,author,author_id,time) VALUES(?,?,?,?,?)"; //SQL für neuen Eintrag
+        String mid = Util.generateUniqueString(32, getAllMessageIDs()); //Eine unique Nachrichten-ID wird generiert
         try (PreparedStatement pstmt = sqliteconn.prepareStatement(sql)) {  //Führe SQL aus
             pstmt.setString(1, mid);
             pstmt.setString(2, content);
@@ -91,7 +113,7 @@ public class DatabaseHandler {
             pstmt.setString(5, time);
             pstmt.executeUpdate();
         } catch (SQLException | NullPointerException e) {
-            log(e.getMessage() + " @server.DatabaseHandler.newMessage");
+            log(e.getMessage() + " @server.DatabaseHandler.commitNewMessage");
             e.printStackTrace();
         }
     }
