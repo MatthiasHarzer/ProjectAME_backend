@@ -2,19 +2,19 @@ package server;
 
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
+
 import java.sql.SQLException;
 import java.util.*;
 
 import org.java_websocket.WebSocket;
-import org.java_websocket.drafts.Draft_6455;
+
 import org.java_websocket.exceptions.WebsocketNotConnectedException;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
-import org.jetbrains.annotations.NotNull;
+
 
 public class Server extends WebSocketServer {
-    public static String __version = "0.2.3";   //Server Version (random)
+    public static String __version = "0.2.4";   //Server Version (random)
     public static int PORT = 5555;              //Server Port
     private DatabaseHandler database;           //Database Handler
 
@@ -42,7 +42,7 @@ public class Server extends WebSocketServer {
      * @param conn Autorverbindung
      * @throws Throwable Error
      */
-    private void processMessage(@NotNull HashMap<String, String> data, WebSocket conn) throws Throwable {
+    private void processMessage(HashMap<String, String> data, WebSocket conn) throws Throwable {
         if (!isValidMessage(data, new String[]{"type", "content"})) {                       //Überprüft, ob die wichtigsten Komponenten der Nachricht gegeben sind, wenn nicht, abbrechen
             sendMessageToConn(conn, mapBlueprint("error", "Invalid message"));  //Antwort zurückschicken (dass die Nachricht nicht valide ist)
             return;
@@ -168,7 +168,7 @@ public class Server extends WebSocketServer {
      * @param args Array an zu überprüfenden Keys
      * @return Error
      */
-    private boolean isValidMessage(@NotNull HashMap<String, String> data, String[] args) {
+    private boolean isValidMessage(HashMap<String, String> data, String[] args) {
         for (String arg : args) {
             try {
                 data.get(arg);
